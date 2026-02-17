@@ -1,0 +1,5 @@
+# 忽略 engine 文件夹下的所有内容
+engine/*
+
+# 但是不要忽略 .gitkeep 文件
+!engine/.gitkeep
