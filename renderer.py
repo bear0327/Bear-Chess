@@ -19,11 +19,70 @@ class Renderer:
         return imgs
 
     def draw_button(self, text, rect, color=(100, 100, 100), text_color=(255, 255, 255)):
-        pygame.draw.rect(self.screen, (20, 20, 20), rect.move(2, 2), border_radius=5)
-        pygame.draw.rect(self.screen, color, rect, border_radius=5)
-        pygame.draw.rect(self.screen, (200, 200, 200), rect, 2, border_radius=5)
+        mouse_pos = pygame.mouse.get_pos()
+        mouse_pressed = pygame.mouse.get_pressed()[0]
+        is_hovered = rect.collidepoint(mouse_pos)
+        is_pressed = is_hovered and mouse_pressed
+        
+        # 根据状态调整颜色
+        if is_pressed:
+            # 点击状态：颜色变暗，下沉效果
+            adjusted_color = tuple(max(0, c - 40) for c in color)
+            shadow_offset = 1
+            border_color = (150, 150, 150)
+        elif is_hovered:
+            # 悬停状态：颜色变亮，边框高亮
+            adjusted_color = tuple(min(255, c + 30) for c in color)
+            shadow_offset = 3
+            border_color = (255, 220, 100)
+        else:
+            # 正常状态
+            adjusted_color = color
+            shadow_offset = 2
+            border_color = (200, 200, 200)
+        
+        # 绘制阴影
+        pygame.draw.rect(self.screen, (20, 20, 20), rect.move(shadow_offset, shadow_offset), border_radius=5)
+        # 绘制按钮主体
+        pygame.draw.rect(self.screen, adjusted_color, rect, border_radius=5)
+        # 绘制边框
+        pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=5)
+        # 绘制文字
         txt = self.small_font.render(text, True, text_color)
-        self.screen.blit(txt, (rect.centerx - txt.get_width() // 2, rect.centery - txt.get_height() // 2))
+        text_offset = 1 if is_pressed else 0
+        self.screen.blit(txt, (rect.centerx - txt.get_width() // 2 + text_offset, 
+                               rect.centery - txt.get_height() // 2 + text_offset))
+        return rect
+
+    def draw_button_on_surface(self, surface, text, rect, color=(100, 100, 100), text_color=(255, 255, 255)):
+        """在指定 Surface 上绘制按钮（用于滚动区域）"""
+        # 计算鼠标相对于滚动区域的位置 (滚动区域从 y=80 开始)
+        mouse_pos = pygame.mouse.get_pos()
+        adjusted_mouse = (mouse_pos[0], mouse_pos[1] - 80)
+        mouse_pressed = pygame.mouse.get_pressed()[0]
+        is_hovered = rect.collidepoint(adjusted_mouse)
+        is_pressed = is_hovered and mouse_pressed
+        
+        if is_pressed:
+            adjusted_color = tuple(max(0, c - 40) for c in color)
+            shadow_offset = 1
+            border_color = (150, 150, 150)
+        elif is_hovered:
+            adjusted_color = tuple(min(255, c + 30) for c in color)
+            shadow_offset = 3
+            border_color = (255, 220, 100)
+        else:
+            adjusted_color = color
+            shadow_offset = 2
+            border_color = (200, 200, 200)
+        
+        pygame.draw.rect(surface, (20, 20, 20), rect.move(shadow_offset, shadow_offset), border_radius=5)
+        pygame.draw.rect(surface, adjusted_color, rect, border_radius=5)
+        pygame.draw.rect(surface, border_color, rect, 2, border_radius=5)
+        txt = self.small_font.render(text, True, text_color)
+        text_offset = 1 if is_pressed else 0
+        surface.blit(txt, (rect.centerx - txt.get_width() // 2 + text_offset, 
+                           rect.centery - txt.get_height() // 2 + text_offset))
         return rect
 
     def _draw_arrow(self, color, start_sq_coords, end_sq_coords, width=6):
@@ -101,15 +160,24 @@ class Renderer:
         pygame.draw.line(self.screen, (70, 70, 70), (0, BOARD_HEIGHT), (WIDTH, BOARD_HEIGHT), 2)
         
         if state == 'LEARNING':
-            txt = f"百科: {learning_title} ({learning_step}/{len(learning_seq)})"
+            # 截断过长的开局名称
+            max_title_len = 12
+            display_title = learning_title if len(learning_title) <= max_title_len else learning_title[:max_title_len] + "..."
+            txt = f"{display_title} ({learning_step}/{len(learning_seq)})"
             col = (150, 255, 150)
         elif logic.board.is_game_over():
             txt = f"结束 | {logic.board.result()}"; col = (255, 100, 100)
         else:
             turn = "白方" if logic.board.turn == chess.WHITE else "黑方"
             txt = f"等待{turn}走棋..."; col = (255, 255, 255)
-            
-        self.screen.blit(self.small_font.render(txt, True, col), (25, BOARD_HEIGHT + 30))
+        
+        # 第一行：状态信息
+        self.screen.blit(self.small_font.render(txt, True, col), (20, BOARD_HEIGHT + 15))
+        
+        # 第二行：显示完整开局名称（如果被截断了）
+        if state == 'LEARNING' and len(learning_title) > max_title_len:
+            full_txt = self.small_font.render(learning_title, True, (120, 200, 120))
+            self.screen.blit(full_txt, (20, BOARD_HEIGHT + 50))
     
     def draw_promotion_menu(self, turn):
         # 遮罩层
