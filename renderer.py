@@ -17,6 +17,10 @@ class Renderer:
             imgs[p] = pygame.transform.scale(pygame.image.load(f"images/w{p}.png"), (SQ_SIZE, SQ_SIZE))
             imgs[p.lower()] = pygame.transform.scale(pygame.image.load(f"images/b{p}.png"), (SQ_SIZE, SQ_SIZE))
         return imgs
+    
+    def draw_menu_background(self):
+        """绘制主菜单背景"""
+        self.screen.fill(BG_COLOR)
 
     def draw_button(self, text, rect, color=(100, 100, 100), text_color=(255, 255, 255)):
         mouse_pos = pygame.mouse.get_pos()
@@ -190,7 +194,7 @@ class Renderer:
         symbols = ['Q', 'R', 'B', 'N'] if turn == chess.WHITE else ['q', 'r', 'b', 'n']
         
         menu_w = SQ_SIZE * 4
-        start_x, y = (WIDTH - menu_w) // 2, BOARD_HEIGHT // 2 - SQ_SIZE // 2
+        start_x, y = (BOARD_SIZE - menu_w) // 2, BOARD_HEIGHT // 2 - SQ_SIZE // 2
         
         # 背景
         pygame.draw.rect(self.screen, (220, 220, 220), (start_x - 10, y - 10, menu_w + 20, SQ_SIZE + 20), border_radius=5)
@@ -200,3 +204,57 @@ class Renderer:
             pygame.draw.rect(self.screen, (255, 255, 255), rect, border_radius=3)
             # 绘制对应的棋子图片
             self.screen.blit(self.images[s], rect)
+    
+    def draw_clock_panel(self, white_time, black_time, current_turn, player_color, time_enabled=True):
+        """绘制右侧时钟面板"""
+        panel_x = BOARD_SIZE
+        panel_rect = pygame.Rect(panel_x, 0, SIDE_PANEL_WIDTH, BOARD_HEIGHT)
+        pygame.draw.rect(self.screen, (30, 30, 35), panel_rect)
+        pygame.draw.line(self.screen, (60, 60, 65), (panel_x, 0), (panel_x, BOARD_HEIGHT), 2)
+        
+        # 格式化时间
+        def format_time(seconds):
+            if seconds is None or seconds < 0:
+                return "--:--"
+            mins = int(seconds) // 60
+            secs = int(seconds) % 60
+            return f"{mins:02d}:{secs:02d}"
+        
+        # 时钟字体
+        clock_font = pygame.font.SysFont("Consolas", 36, bold=True)
+        label_font = pygame.font.SysFont("SimHei", 18)
+        
+        # 对手时钟 (顶部)
+        opponent_color = chess.BLACK if player_color == chess.WHITE else chess.WHITE
+        opponent_time = black_time if opponent_color == chess.BLACK else white_time
+        opponent_active = (current_turn == opponent_color) and time_enabled
+        
+        # 对手区域
+        opp_rect = pygame.Rect(panel_x + 10, 50, SIDE_PANEL_WIDTH - 20, 100)
+        opp_bg = (80, 40, 40) if opponent_active else (45, 45, 50)
+        pygame.draw.rect(self.screen, opp_bg, opp_rect, border_radius=8)
+        
+        opp_label = "黑方" if opponent_color == chess.BLACK else "白方"
+        self.screen.blit(label_font.render(opp_label, True, (180, 180, 180)), (panel_x + 20, 55))
+        
+        opp_time_txt = clock_font.render(format_time(opponent_time), True, (255, 255, 255))
+        self.screen.blit(opp_time_txt, (panel_x + SIDE_PANEL_WIDTH//2 - opp_time_txt.get_width()//2, 85))
+        
+        # 玩家时钟 (底部)
+        player_time = white_time if player_color == chess.WHITE else black_time
+        player_active = (current_turn == player_color) and time_enabled
+        
+        # 玩家区域
+        player_rect = pygame.Rect(panel_x + 10, BOARD_HEIGHT - 150, SIDE_PANEL_WIDTH - 20, 100)
+        player_bg = (40, 80, 40) if player_active else (45, 45, 50)
+        pygame.draw.rect(self.screen, player_bg, player_rect, border_radius=8)
+        
+        player_label = "白方" if player_color == chess.WHITE else "黑方"
+        self.screen.blit(label_font.render(player_label + " (你)", True, (180, 180, 180)), (panel_x + 20, BOARD_HEIGHT - 145))
+        
+        player_time_txt = clock_font.render(format_time(player_time), True, (255, 255, 255))
+        self.screen.blit(player_time_txt, (panel_x + SIDE_PANEL_WIDTH//2 - player_time_txt.get_width()//2, BOARD_HEIGHT - 115))
+        
+        if not time_enabled:
+            hint = label_font.render("无限时", True, (120, 120, 120))
+            self.screen.blit(hint, (panel_x + SIDE_PANEL_WIDTH//2 - hint.get_width()//2, BOARD_HEIGHT//2 - 10))

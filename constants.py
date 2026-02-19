@@ -3,9 +3,20 @@ import json
 import os
 
 # 尺寸配置
-WIDTH, HEIGHT = 600, 720
+BOARD_SIZE = 600
+SIDE_PANEL_WIDTH = 180  # 右侧时钟面板宽度
+WIDTH = BOARD_SIZE + SIDE_PANEL_WIDTH  # 780
+HEIGHT = 720
 BOARD_HEIGHT = 600
-SQ_SIZE = WIDTH // 8
+SQ_SIZE = BOARD_SIZE // 8
+
+# 时间控制选项 (分钟, 秒增量)
+TIME_CONTROLS = [
+    ("5+2 闪电", 5, 2),
+    ("10+0 快棋", 10, 0),
+    ("15+10 慢棋", 15, 10),
+    ("无限时", 0, 0),
+]
 
 # 颜色配置
 COLORS = [pygame.Color("#eae8f1"), pygame.Color("#769656")]
