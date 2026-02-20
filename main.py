@@ -45,8 +45,11 @@ class ChessApp:
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT: self.quit()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: 
-                self.reset_game(); self.state = 'MENU'
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                if self.input_active:
+                    self.input_active = False  # 仅关闭输入框
+                else:
+                    self.reset_game(); self.state = 'MENU'
             
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # 只响应左键点击
                 if self.state == 'OPENING_MENU':
@@ -86,9 +89,19 @@ class ChessApp:
                     self._handle_input_submit()
                 elif event.key == pygame.K_BACKSPACE:
                     self.input_text = self.input_text[:-1]
-                elif event.key == pygame.K_ESCAPE:
-                    self.input_active = False
-                elif event.unicode.isprintable():
+                elif event.key == pygame.K_v and (event.mod & pygame.KMOD_CTRL):
+                    # Ctrl+V 粘贴 (使用tkinter剪贴板)
+                    try:
+                        import tkinter as tk
+                        root = tk.Tk()
+                        root.withdraw()
+                        clipboard_text = root.clipboard_get()
+                        root.destroy()
+                        if clipboard_text:
+                            self.input_text += clipboard_text
+                    except:
+                        pass
+                elif event.unicode.isprintable() and event.key != pygame.K_ESCAPE:
                     self.input_text += event.unicode
     
     def _handle_input_submit(self):
@@ -110,6 +123,12 @@ class ChessApp:
         """开始联机游戏"""
         self.reset_game()
         self.logic.player_color = chess.WHITE if self.lichess.my_color == 'white' else chess.BLACK
+        # 设置10+0时钟
+        self.white_time = 10 * 60  # 10分钟
+        self.black_time = 10 * 60
+        self.increment = 0
+        self.time_enabled = True
+        self.last_tick = pygame.time.get_ticks()
         self.state = 'ONLINE'
     
     def _draw_input_box(self):
@@ -119,21 +138,21 @@ class ChessApp:
         overlay.fill((0, 0, 0, 180))
         self.screen.blit(overlay, (0, 0))
         
-        # 输入框背景
-        box_rect = pygame.Rect(50, HEIGHT//2 - 50, WIDTH - 100, 100)
+        # 输入框背景 (加高以容纳所有内容)
+        box_rect = pygame.Rect(50, HEIGHT//2 - 60, WIDTH - 100, 120)
         pygame.draw.rect(self.screen, (50, 50, 60), box_rect, border_radius=10)
         pygame.draw.rect(self.screen, (100, 100, 120), box_rect, 2, border_radius=10)
         
         # 提示文字
         hint = "输入 Token:" if self.input_target == 'token' else "输入用户名:"
-        self.screen.blit(self.ui.small_font.render(hint, True, (200, 200, 200)), (70, HEIGHT//2 - 40))
+        self.screen.blit(self.ui.small_font.render(hint, True, (200, 200, 200)), (70, HEIGHT//2 - 45))
         
         # 输入内容
         display_text = self.input_text + ("|" if pygame.time.get_ticks() % 1000 < 500 else "")
-        self.screen.blit(self.ui.small_font.render(display_text, True, (255, 255, 255)), (70, HEIGHT//2))
+        self.screen.blit(self.ui.small_font.render(display_text, True, (255, 255, 255)), (70, HEIGHT//2 - 5))
         
-        # 提示
-        self.screen.blit(self.ui.small_font.render("按 Enter 确认 | ESC 取消", True, (150, 150, 150)), (70, HEIGHT//2 + 30))
+        # 提示 (Enter确认/ESC取消)
+        self.screen.blit(self.ui.small_font.render("Enter确认 / ESC取消", True, (150, 150, 150)), (70, HEIGHT//2 + 30))
 
     def on_click(self, pos):
         if self.state == 'MENU':
@@ -155,12 +174,10 @@ class ChessApp:
                 self.input_text = self.lichess_token
                 self.input_target = 'token'
             elif pygame.Rect(WIDTH//4, 280, WIDTH//2, 50).collidepoint(pos) and self.lichess.connected:
-                # 快速匹配
-                self.lichess_status = "正在匹配..."
-                success, msg = self.lichess.create_challenge()
-                self.lichess_status = msg
-                if success:
-                    self._start_online_game()
+                # 快速匹配（非阻塞）
+                if not self.lichess.matching:
+                    success, msg = self.lichess.create_challenge()
+                    self.lichess_status = msg
             elif pygame.Rect(WIDTH//4, 360, WIDTH//2, 50).collidepoint(pos) and self.lichess.connected:
                 # 挑战好友
                 self.input_active = True
@@ -372,8 +389,8 @@ class ChessApp:
                     self._do_move(mv)
                 self.ai_timer = 0
         
-        # 时钟计时（超时后停止计时）
-        if self.state == 'PLAYING' and self.time_enabled and not self.time_expired and not self.logic.board.is_game_over():
+        # 时钟计时（超时后停止计时）- 支持本地和联机模式
+        if self.state in ('PLAYING', 'ONLINE') and self.time_enabled and not self.time_expired and not self.logic.board.is_game_over():
             current_tick = pygame.time.get_ticks()
             if self.last_tick:
                 elapsed = (current_tick - self.last_tick) / 1000.0
@@ -388,6 +405,16 @@ class ChessApp:
                         self.black_time = 0
                         self.time_expired = True
             self.last_tick = current_tick
+        
+        # 检查匹配状态（联机菜单中）
+        if self.state == 'ONLINE_MENU':
+            is_matching, result = self.lichess.check_match_status()
+            if not is_matching and result:
+                success, msg = result
+                self.lichess_status = msg
+                self.lichess.match_result = None  # 清除结果，避免重复触发
+                if success:
+                    self._start_online_game()
         
         # 联机游戏更新
         if self.state == 'ONLINE':
@@ -448,7 +475,11 @@ class ChessApp:
             
             # 连接后的选项
             if self.lichess.connected:
-                self.ui.draw_button("快速匹配", pygame.Rect(WIDTH//4, 280, WIDTH//2, 50), (45, 90, 45))
+                # 快速匹配按钮（匹配中显示不同状态）
+                if self.lichess.matching:
+                    self.ui.draw_button("正在匹配...", pygame.Rect(WIDTH//4, 280, WIDTH//2, 50), (120, 120, 45))
+                else:
+                    self.ui.draw_button("快速匹配", pygame.Rect(WIDTH//4, 280, WIDTH//2, 50), (45, 90, 45))
                 opp_text = self.lichess_opponent or "输入用户名"
                 btn_color2 = (80, 80, 120) if self.input_active and self.input_target == 'opponent' else (70, 70, 70)
                 self.ui.draw_button(f"挑战: {opp_text}", pygame.Rect(WIDTH//4, 360, WIDTH//2, 50), btn_color2)
@@ -484,9 +515,18 @@ class ChessApp:
             # 联机游戏界面
             self.ui.draw_board(self.logic, self.selected_sq, 'PLAYING', 0, [], False)
             self.ui.draw_panel(self.logic, 'PLAYING', "", 0, [])
+            # 绘制时钟面板
+            if self.time_enabled:
+                self.ui.draw_clock_panel(self.white_time, self.black_time, self.logic.board.turn, self.logic.player_color)
+            # 超时显示
+            if self.time_expired:
+                loser = "白方" if self.white_time <= 0 else "黑方"
+                winner = "黑方" if self.white_time <= 0 else "白方"
+                timeout_txt = self.ui.font.render(f"{loser}超时 - {winner}胜!", True, (255, 80, 80))
+                self.screen.blit(timeout_txt, (BOARD_SIZE//2 - timeout_txt.get_width()//2, BOARD_HEIGHT//2 - 20))
             # 显示对战信息
             info = f"Lichess | 你执{'白' if self.logic.player_color == chess.WHITE else '黑'}"
-            self.screen.blit(self.ui.small_font.render(info, True, (150, 200, 255)), (20, BOARD_HEIGHT + 15))
+            self.screen.blit(self.ui.small_font.render(info, True, (150, 200, 255)), (20, BOARD_HEIGHT + 45))
             self.ui.draw_button("认输退出", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40), (120, 40, 40))
         
         elif self.state == 'OPENING_MENU':
