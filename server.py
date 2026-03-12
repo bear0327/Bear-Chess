@@ -25,6 +25,7 @@ class Room:
         self.time_limit = time_limit
         self.increment = increment
         self.created_at = time.time()
+        self.draw_offer_from = None  # "white" / "black" / None
 
     def is_full(self):
         return self.white is not None and self.black is not None
@@ -206,6 +207,7 @@ async def handle_client(ws):
                     continue
 
                 room.moves.append(uci_move)
+                room.draw_offer_from = None
                 opponent = room.get_opponent(ws)
                 if opponent:
                     await safe_send(opponent[0], {
@@ -215,6 +217,69 @@ async def handle_client(ws):
                     })
                 # 回执确认
                 await safe_send(ws, {"type": "move_ok", "uci": uci_move})
+
+            # ── 提和 ─────────────────────────────────────
+            elif action == "offer_draw":
+                if not room or room.status != "playing":
+                    await safe_send(ws, {"type": "error", "msg": "不在对局中"})
+                    continue
+
+                color = room.get_color(ws)
+                opponent = room.get_opponent(ws)
+                if not color or not opponent:
+                    await safe_send(ws, {"type": "error", "msg": "对局状态异常"})
+                    continue
+
+                if room.draw_offer_from == color:
+                    await safe_send(ws, {"type": "error", "msg": "你已发送提和，请等待对方回应"})
+                    continue
+
+                room.draw_offer_from = color
+                await safe_send(ws, {"type": "draw_offer_sent"})
+                await safe_send(opponent[0], {"type": "draw_offer", "from": color})
+
+            # ── 接受提和 ─────────────────────────────────
+            elif action == "accept_draw":
+                if not room or room.status != "playing":
+                    await safe_send(ws, {"type": "error", "msg": "不在对局中"})
+                    continue
+
+                color = room.get_color(ws)
+                opponent = room.get_opponent(ws)
+                if not color or not opponent:
+                    await safe_send(ws, {"type": "error", "msg": "对局状态异常"})
+                    continue
+
+                if not room.draw_offer_from or room.draw_offer_from == color:
+                    await safe_send(ws, {"type": "error", "msg": "当前没有可接受的提和"})
+                    continue
+
+                room.status = "ended"
+                result = {"type": "game_over", "reason": "draw", "winner": None}
+                await safe_send(ws, result)
+                await safe_send(opponent[0], result)
+                rooms.pop(room.room_id, None)
+                room = None
+
+            # ── 拒绝提和 ─────────────────────────────────
+            elif action == "decline_draw":
+                if not room or room.status != "playing":
+                    await safe_send(ws, {"type": "error", "msg": "不在对局中"})
+                    continue
+
+                color = room.get_color(ws)
+                opponent = room.get_opponent(ws)
+                if not color or not opponent:
+                    await safe_send(ws, {"type": "error", "msg": "对局状态异常"})
+                    continue
+
+                if not room.draw_offer_from or room.draw_offer_from == color:
+                    await safe_send(ws, {"type": "error", "msg": "当前没有可拒绝的提和"})
+                    continue
+
+                room.draw_offer_from = None
+                await safe_send(ws, {"type": "draw_declined"})
+                await safe_send(opponent[0], {"type": "draw_declined"})
 
             # ── 认输 ─────────────────────────────────────
             elif action == "resign":

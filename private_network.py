@@ -28,6 +28,8 @@ class PrivateClient:
         self.time_limit = 600
         self.increment = 0
         self.game_started = False
+        self.incoming_draw_offer = False
+        self.draw_offer_sent = False
 
         # 匹配/等待状态
         self.matching = False
@@ -119,6 +121,8 @@ class PrivateClient:
                     self.increment = msg.get("increment", 0)
                     self.game_started = True
                     self.matching = False
+                    self.incoming_draw_offer = False
+                    self.draw_offer_sent = False
 
                 elif msg_type == "matching":
                     self.matching = True
@@ -129,6 +133,18 @@ class PrivateClient:
                 elif msg_type == "game_over":
                     self.game_started = False
                     self.matching = False
+                    self.incoming_draw_offer = False
+                    self.draw_offer_sent = False
+
+                elif msg_type == "draw_offer":
+                    self.incoming_draw_offer = True
+
+                elif msg_type == "draw_offer_sent":
+                    self.draw_offer_sent = True
+
+                elif msg_type == "draw_declined":
+                    self.incoming_draw_offer = False
+                    self.draw_offer_sent = False
 
                 elif msg_type == "room_created":
                     self.room_id = msg.get("room_id")
@@ -195,12 +211,35 @@ class PrivateClient:
             self._send({"action": "resign"})
         self.game_started = False
 
+    def offer_draw(self):
+        if not self.connected or not self.game_started:
+            return False, "当前不在对局中"
+        if self.draw_offer_sent:
+            return False, "已发送提和，请等待对方回应"
+        self._send({"action": "offer_draw"})
+        return True, "已发送提和"
+
+    def accept_draw(self):
+        if not self.connected or not self.game_started:
+            return False, "当前不在对局中"
+        self._send({"action": "accept_draw"})
+        return True, "已接受和棋"
+
+    def decline_draw(self):
+        if not self.connected or not self.game_started:
+            return False, "当前不在对局中"
+        self._send({"action": "decline_draw"})
+        self.incoming_draw_offer = False
+        return True, "已拒绝提和"
+
     def leave_room(self):
         self._send({"action": "leave"})
         self.room_id = None
         self.my_color = None
         self.game_started = False
         self.matching = False
+        self.incoming_draw_offer = False
+        self.draw_offer_sent = False
 
     def disconnect(self):
         if self.game_started:
@@ -209,6 +248,8 @@ class PrivateClient:
             self._loop.call_soon_threadsafe(self._send_queue.put_nowait, None)
         self.connected = False
         self.game_started = False
+        self.incoming_draw_offer = False
+        self.draw_offer_sent = False
 
     def poll_event(self):
         """非阻塞取一条服务器事件，无事件返回 None"""

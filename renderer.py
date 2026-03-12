@@ -169,8 +169,8 @@ class Renderer:
             display_title = learning_title if len(learning_title) <= max_title_len else learning_title[:max_title_len] + "..."
             txt = f"{display_title} ({learning_step}/{len(learning_seq)})"
             col = (150, 255, 150)
-        elif logic.board.is_game_over():
-            txt = f"结束 | {logic.board.result()}"; col = (255, 100, 100)
+        elif logic.board.is_game_over(claim_draw=True):
+            txt = f"结束 | {logic.board.result(claim_draw=True)}"; col = (255, 100, 100)
         else:
             turn = "白方" if logic.board.turn == chess.WHITE else "黑方"
             txt = f"等待{turn}走棋..."; col = (255, 255, 255)

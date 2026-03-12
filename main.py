@@ -48,6 +48,10 @@ class ChessApp:
         self.last_tick = None  # 上次计时时间戳
         self.time_expired = False  # 是否超时
         self.game_mode = None  # 'pvp', 'ai', 'learning', 'online'
+        self.pvp_draw_offer_from = None
+        self.pvp_status = ""
+        self.pvp_game_ended = False
+        self.private_game_ended = False
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -292,7 +296,10 @@ class ChessApp:
             if pygame.Rect(WIDTH-240, BOARD_HEIGHT+70, 220, 40).collidepoint(pos): 
                 self.reset_game(); self.state = 'MENU'; return
             elif self.state == 'PROMOTING': self.handle_promotion(pos)
-            elif pos[1] <= BOARD_HEIGHT: self.handle_move(pos)
+            elif self.state == 'PLAYING' and self.game_mode == 'pvp' and self._handle_pvp_draw_click(pos):
+                return
+            elif pos[1] <= BOARD_HEIGHT and not self.pvp_game_ended:
+                self.handle_move(pos)
         
         elif self.state == 'ONLINE':
             if pygame.Rect(WIDTH-240, BOARD_HEIGHT+70, 220, 40).collidepoint(pos):
@@ -308,18 +315,34 @@ class ChessApp:
             self._handle_private_menu_click(pos)
 
         elif self.state == 'PRIVATE_ONLINE':
+            # 接受/拒绝和棋
+            if self.private.incoming_draw_offer and not self.private_game_ended:
+                if pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 105, 40).collidepoint(pos):
+                    success, msg = self.private.accept_draw()
+                    self.private_status = msg
+                    return
+                if pygame.Rect(WIDTH - 125, BOARD_HEIGHT + 20, 105, 40).collidepoint(pos):
+                    success, msg = self.private.decline_draw()
+                    self.private_status = msg
+                    return
+            # 提和
+            elif not self.private_game_ended and pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 220, 40).collidepoint(pos):
+                success, msg = self.private.offer_draw()
+                self.private_status = msg
+                return
+
             if pygame.Rect(WIDTH-240, BOARD_HEIGHT+70, 220, 40).collidepoint(pos):
                 self.private.resign()
                 self.private.leave_room()
                 self.private_status = ""
                 self.state = 'PRIVATE_MENU'
                 return
-            elif pos[1] <= BOARD_HEIGHT:
+            elif pos[1] <= BOARD_HEIGHT and not self.private_game_ended:
                 self.handle_private_move(pos)
 
     def handle_move(self, pos):
         # 超时后不能走棋
-        if self.time_expired:
+        if self.time_expired or (self.game_mode == 'pvp' and self.pvp_game_ended):
             return
         # 修复：获取格子坐标
         sq = self.logic.get_sq_from_coords(pos[0]//SQ_SIZE, pos[1]//SQ_SIZE)
@@ -464,6 +487,8 @@ class ChessApp:
         """开始私服联机游戏"""
         self.reset_game()
         self.game_mode = 'private_online'
+        self.private_game_ended = False
+        self.private_status = "对局开始"
         self.logic.player_color = chess.WHITE if self.private.my_color == 'white' else chess.BLACK
         self.white_time = self.private.time_limit
         self.black_time = self.private.time_limit
@@ -472,8 +497,61 @@ class ChessApp:
         self.last_tick = pygame.time.get_ticks()
         self.state = 'PRIVATE_ONLINE'
 
+    def _build_board_result_text(self):
+        """根据棋盘状态生成结束文案（将死/和棋）"""
+        if not self.logic.board.is_game_over(claim_draw=True):
+            return None
+
+        outcome = self.logic.board.outcome(claim_draw=True)
+        if outcome is None:
+            return "游戏结束"
+
+        if outcome.winner is None:
+            reason = str(outcome.termination).replace("Termination.", "")
+            return f"游戏结束: 和棋 ({reason})"
+
+        winner_color = chess.WHITE if outcome.winner else chess.BLACK
+        if winner_color == self.logic.player_color:
+            return "游戏结束: 你获胜"
+        return "游戏结束: 你失败"
+
+    def _build_pvp_result_text(self):
+        """双人模式下，根据棋盘状态生成结束文案（将死/和棋）"""
+        if not self.logic.board.is_game_over(claim_draw=True):
+            return None
+
+        outcome = self.logic.board.outcome(claim_draw=True)
+        if outcome is None:
+            return "游戏结束"
+
+        if outcome.winner is None:
+            reason = str(outcome.termination).replace("Termination.", "")
+            return f"游戏结束: 和棋 ({reason})"
+
+        winner = "白方" if outcome.winner == chess.WHITE else "黑方"
+        return f"游戏结束: {winner}胜"
+
+    def _handle_pvp_draw_click(self, pos):
+        """处理双人模式提和按钮点击（点击即和棋）"""
+        if self.game_mode != 'pvp' or self.state != 'PLAYING':
+            return False
+        if self.pvp_game_ended:
+            return False
+
+        offer_btn = pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 220, 40)
+        if offer_btn.collidepoint(pos):
+            self.pvp_draw_offer_from = None
+            self.pvp_game_ended = True
+            self.pvp_status = "游戏结束: 双方和棋"
+            return True
+
+        return False
+
     def handle_private_move(self, pos):
         """处理私服联机游戏中的走棋"""
+        if self.private_game_ended:
+            return
+
         if self.logic.board.turn != self.logic.player_color:
             return
 
@@ -503,6 +581,10 @@ class ChessApp:
                             self.black_time += self.time_increment
                         else:
                             self.white_time += self.time_increment
+                    end_text = self._build_board_result_text()
+                    if end_text:
+                        self.private_game_ended = True
+                        self.private_status = end_text
 
             self.selected_sq = None
 
@@ -538,13 +620,34 @@ class ChessApp:
                                     self.black_time += self.time_increment
                                 else:
                                     self.white_time += self.time_increment
+                            end_text = self._build_board_result_text()
+                            if end_text:
+                                self.private_game_ended = True
+                                self.private_status = end_text
                     except ValueError:
                         pass
 
             elif etype == "game_over":
                 reason = event.get("reason", "")
                 winner = event.get("winner", "")
-                self.private_status = f"游戏结束: {reason} ({winner}胜)"
+                self.private_game_ended = True
+                if reason == "draw":
+                    self.private_status = "游戏结束: 双方和棋"
+                elif reason == "resign":
+                    self.private_status = f"游戏结束: 认输 ({winner}胜)"
+                elif reason == "disconnect":
+                    self.private_status = f"游戏结束: 对手断线 ({winner}胜)"
+                else:
+                    self.private_status = f"游戏结束: {reason} ({winner}胜)"
+
+            elif etype == "draw_offer":
+                self.private_status = "对手请求和棋"
+
+            elif etype == "draw_offer_sent":
+                self.private_status = "已发送提和，等待对方回应"
+
+            elif etype == "draw_declined":
+                self.private_status = "提和被拒绝"
 
             elif etype == "error":
                 self.private_status = event.get("msg", "错误")
@@ -568,7 +671,8 @@ class ChessApp:
                 self.ai_timer = 0
         
         # 时钟计时（超时后停止计时）- 支持本地和联机模式
-        if self.state in ('PLAYING', 'ONLINE', 'PRIVATE_ONLINE') and self.time_enabled and not self.time_expired and not self.logic.board.is_game_over():
+        board_over_for_clock = self.logic.board.is_game_over(claim_draw=True) if (self.state == 'PLAYING' and self.game_mode == 'pvp') else self.logic.board.is_game_over()
+        if self.state in ('PLAYING', 'ONLINE', 'PRIVATE_ONLINE') and self.time_enabled and not self.time_expired and not board_over_for_clock and not self.pvp_game_ended:
             current_tick = pygame.time.get_ticks()
             if self.last_tick:
                 elapsed = (current_tick - self.last_tick) / 1000.0
@@ -621,6 +725,14 @@ class ChessApp:
         """执行走法并处理计时"""
         moving_color = self.logic.board.turn
         self.logic.board.push(move)
+
+        # 双人模式：每步后更新将死/和棋判定
+        if self.game_mode == 'pvp':
+            end_text = self._build_pvp_result_text()
+            if end_text:
+                self.pvp_game_ended = True
+                self.pvp_status = end_text
+
         # 走完后给刚走的一方加秒
         if self.time_enabled and self.time_increment > 0:
             if moving_color == chess.WHITE:
@@ -785,6 +897,15 @@ class ChessApp:
                 winner = "黑方" if self.white_time <= 0 else "白方"
                 timeout_txt = self.ui.font.render(f"{loser}超时 - {winner}胜!", True, (255, 80, 80))
                 self.screen.blit(timeout_txt, (BOARD_SIZE//2 - timeout_txt.get_width()//2, BOARD_HEIGHT//2 - 20))
+
+            if self.state == 'PLAYING' and self.game_mode == 'pvp':
+                if self.pvp_status:
+                    status_color = (255, 100, 100) if "游戏结束" in self.pvp_status else (200, 200, 120)
+                    self.screen.blit(self.ui.small_font.render(self.pvp_status, True, status_color), (20, BOARD_HEIGHT + 45))
+
+                if not self.pvp_game_ended and not self.time_expired:
+                    self.ui.draw_button("提和(直接判和)", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 220, 40), (60, 100, 120))
+
             self.ui.draw_button("返回主菜单 [ESC]", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40), (120, 40, 40))
         pygame.display.flip()
 
@@ -853,7 +974,14 @@ class ChessApp:
         self.screen.blit(self.ui.small_font.render(info, True, (150, 200, 255)), (20, BOARD_HEIGHT + 45))
         # 状态显示
         if self.private_status and "游戏结束" in self.private_status:
-            self.screen.blit(self.ui.small_font.render(self.private_status, True, (255, 100, 100)), (20, BOARD_HEIGHT + 5))
+            self.screen.blit(self.ui.small_font.render(self.private_status, True, (255, 100, 100)), (20, BOARD_HEIGHT + 75))
+
+        if self.private.incoming_draw_offer and not self.private_game_ended:
+            self.ui.draw_button("接受和棋", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 105, 40), (45, 90, 45))
+            self.ui.draw_button("拒绝", pygame.Rect(WIDTH - 125, BOARD_HEIGHT + 20, 105, 40), (120, 80, 45))
+        elif not self.private_game_ended:
+            self.ui.draw_button("提和", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 220, 40), (60, 100, 120))
+
         self.ui.draw_button("认输退出", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40), (120, 40, 40))
 
     def quit(self):
