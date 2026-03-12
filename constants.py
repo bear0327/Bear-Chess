@@ -28,6 +28,11 @@ STOCKFISH_PATH = "./engine/stockfish-windows-x86-64-avx2.exe"
 BOOK_PATH = "./engine/human.bin"
 OPENINGS_PATH = "./openings.json"
 
+# ── 私服联机配置 ─────────────────────────────────────────────
+# 将下面的地址改为你的云服务器IP和端口，就不用每次在游戏里输入了
+PRIVATE_SERVER_URL = "ws://61.184.13.39:8765"   # 例如 "ws://123.45.67.89:8765"
+PRIVATE_NICKNAME = ""     # 默认昵称，留空则需要在游戏中输入
+
 # 从外部 JSON 文件加载开局数据
 def _load_openings():
     if os.path.exists(OPENINGS_PATH):

@@ -3,6 +3,7 @@ from constants import *
 from logic import GameLogic
 from renderer import Renderer
 from network import LichessClient, BERSERK_AVAILABLE
+from private_network import PrivateClient, PRIVATE_NET_AVAILABLE
 
 class ChessApp:
     def __init__(self):
@@ -18,6 +19,12 @@ class ChessApp:
         self.input_active = False
         self.input_text = ""
         self.input_target = None  # 'token' 或 'opponent'
+        # 私服联机
+        self.private = PrivateClient()
+        self.private_server_url = PRIVATE_SERVER_URL
+        self.private_nickname = PRIVATE_NICKNAME
+        self.private_room_id = ""
+        self.private_status = ""
         self.reset_game()
         self.state = 'MENU'
 
@@ -48,6 +55,11 @@ class ChessApp:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 if self.input_active:
                     self.input_active = False  # 仅关闭输入框
+                elif self.state == 'PRIVATE_ONLINE':
+                    self.private.resign()
+                    self.private.leave_room()
+                    self.private_status = ""
+                    self.state = 'PRIVATE_MENU'
                 else:
                     self.reset_game(); self.state = 'MENU'
             
@@ -118,6 +130,17 @@ class ChessApp:
             self.lichess_status = msg
             if success:
                 self._start_online_game()
+        elif self.input_target == 'private_server':
+            self.private_server_url = self.input_text
+        elif self.input_target == 'private_nick':
+            self.private_nickname = self.input_text
+            if self.private_server_url and self.private_nickname:
+                success, msg = self.private.connect(self.private_server_url, self.private_nickname)
+                self.private_status = msg
+        elif self.input_target == 'private_room_join':
+            self.private_room_id = self.input_text
+            success, msg = self.private.join_room(self.private_room_id)
+            self.private_status = msg
     
     def _start_online_game(self):
         """开始联机游戏"""
@@ -166,6 +189,12 @@ class ChessApp:
                 self.reset_game(); self.state = 'OPENING_MENU'
             elif pygame.Rect(WIDTH//4, 430, WIDTH//2, 50).collidepoint(pos):
                 self.state = 'ONLINE_MENU'
+            elif pygame.Rect(WIDTH//4, 500, WIDTH//2, 50).collidepoint(pos):
+                self.state = 'PRIVATE_MENU'
+                # 如果配置了默认地址和昵称，自动连接
+                if self.private_server_url and self.private_nickname and not self.private.connected:
+                    success, msg = self.private.connect(self.private_server_url, self.private_nickname)
+                    self.private_status = msg
         
         elif self.state == 'ONLINE_MENU':
             if pygame.Rect(WIDTH//4, 200, WIDTH//2, 50).collidepoint(pos):
@@ -275,6 +304,19 @@ class ChessApp:
             elif pos[1] <= BOARD_HEIGHT:
                 self.handle_online_move(pos)
 
+        elif self.state == 'PRIVATE_MENU':
+            self._handle_private_menu_click(pos)
+
+        elif self.state == 'PRIVATE_ONLINE':
+            if pygame.Rect(WIDTH-240, BOARD_HEIGHT+70, 220, 40).collidepoint(pos):
+                self.private.resign()
+                self.private.leave_room()
+                self.private_status = ""
+                self.state = 'PRIVATE_MENU'
+                return
+            elif pos[1] <= BOARD_HEIGHT:
+                self.handle_private_move(pos)
+
     def handle_move(self, pos):
         # 超时后不能走棋
         if self.time_expired:
@@ -381,6 +423,142 @@ class ChessApp:
             
             self.selected_sq = None
 
+    # ── 私服联机方法 ─────────────────────────────────────────
+
+    def _handle_private_menu_click(self, pos):
+        """处理私服联机菜单的点击"""
+        if pygame.Rect(WIDTH//4, 160, WIDTH//2, 50).collidepoint(pos):
+            # 输入服务器地址
+            self.input_active = True
+            self.input_text = self.private_server_url
+            self.input_target = 'private_server'
+        elif pygame.Rect(WIDTH//4, 230, WIDTH//2, 50).collidepoint(pos):
+            # 输入昵称并连接
+            self.input_active = True
+            self.input_text = self.private_nickname
+            self.input_target = 'private_nick'
+        elif self.private.connected:
+            if pygame.Rect(WIDTH//4, 320, WIDTH//2, 50).collidepoint(pos):
+                # 创建房间
+                success, msg = self.private.create_room()
+                self.private_status = msg
+            elif pygame.Rect(WIDTH//4, 390, WIDTH//2, 50).collidepoint(pos):
+                # 加入房间
+                self.input_active = True
+                self.input_text = self.private_room_id
+                self.input_target = 'private_room_join'
+            elif pygame.Rect(WIDTH//4, 460, WIDTH//2, 50).collidepoint(pos):
+                # 快速匹配
+                if self.private.matching:
+                    self.private.cancel_match()
+                    self.private_status = "已取消匹配"
+                else:
+                    success, msg = self.private.quick_match()
+                    self.private_status = msg
+        if pygame.Rect(WIDTH//4, HEIGHT-70, WIDTH//2, 45).collidepoint(pos):
+            if self.private.matching:
+                self.private.cancel_match()
+            self.state = 'MENU'
+
+    def _start_private_game(self):
+        """开始私服联机游戏"""
+        self.reset_game()
+        self.game_mode = 'private_online'
+        self.logic.player_color = chess.WHITE if self.private.my_color == 'white' else chess.BLACK
+        self.white_time = self.private.time_limit
+        self.black_time = self.private.time_limit
+        self.time_increment = self.private.increment
+        self.time_enabled = True
+        self.last_tick = pygame.time.get_ticks()
+        self.state = 'PRIVATE_ONLINE'
+
+    def handle_private_move(self, pos):
+        """处理私服联机游戏中的走棋"""
+        if self.logic.board.turn != self.logic.player_color:
+            return
+
+        sq = self.logic.get_sq_from_coords(pos[0]//SQ_SIZE, pos[1]//SQ_SIZE)
+
+        if self.selected_sq is None:
+            if p := self.logic.board.piece_at(sq):
+                if p.color == self.logic.board.turn:
+                    self.selected_sq = sq
+        else:
+            from_sq = self.selected_sq
+            to_sq = sq
+            move = chess.Move(from_sq, to_sq)
+
+            piece = self.logic.board.piece_at(from_sq)
+            if piece and piece.piece_type == chess.PAWN:
+                if (piece.color == chess.WHITE and chess.square_rank(to_sq) == 7) or \
+                   (piece.color == chess.BLACK and chess.square_rank(to_sq) == 0):
+                    move = chess.Move(from_sq, to_sq, promotion=chess.QUEEN)
+
+            if move in self.logic.board.legal_moves:
+                if self.private.make_move(move.uci()):
+                    self.logic.board.push(move)
+                    # 加秒
+                    if self.time_enabled and self.time_increment > 0:
+                        if self.logic.board.turn == chess.WHITE:
+                            self.black_time += self.time_increment
+                        else:
+                            self.white_time += self.time_increment
+
+            self.selected_sq = None
+
+    def _update_private_online(self):
+        """处理私服联机事件"""
+        event = self.private.poll_event()
+        while event:
+            etype = event.get("type")
+
+            if etype == "name_ok":
+                self.private_status = f"已连接: {self.private.nickname}"
+
+            elif etype == "conn_error":
+                self.private_status = event.get("msg", "连接失败")
+
+            elif etype == "game_start":
+                self._start_private_game()
+
+            elif etype == "room_created":
+                self.private_room_id = event.get("room_id", "")
+                self.private_status = f"房间已创建: {self.private_room_id}（等待对手加入）"
+
+            elif etype == "opponent_move":
+                uci = event.get("uci", "")
+                if uci:
+                    try:
+                        m = chess.Move.from_uci(uci)
+                        if m in self.logic.board.legal_moves:
+                            self.logic.board.push(m)
+                            # 对手走后给对手加秒
+                            if self.time_enabled and self.time_increment > 0:
+                                if self.logic.board.turn == chess.WHITE:
+                                    self.black_time += self.time_increment
+                                else:
+                                    self.white_time += self.time_increment
+                    except ValueError:
+                        pass
+
+            elif etype == "game_over":
+                reason = event.get("reason", "")
+                winner = event.get("winner", "")
+                self.private_status = f"游戏结束: {reason} ({winner}胜)"
+
+            elif etype == "error":
+                self.private_status = event.get("msg", "错误")
+
+            elif etype == "matching":
+                self.private_status = "正在等待对手..."
+
+            elif etype == "disconnected":
+                self.private_status = "连接已断开"
+                if self.state == 'PRIVATE_ONLINE':
+                    self.state = 'PRIVATE_MENU'
+
+            event = self.private.poll_event()
+
     def update(self):
         # AI逻辑（超时后不能走棋）
         if self.state == 'PLAYING' and self.logic.engine and self.logic.board.turn != self.logic.player_color and not self.time_expired:
@@ -390,7 +568,7 @@ class ChessApp:
                 self.ai_timer = 0
         
         # 时钟计时（超时后停止计时）- 支持本地和联机模式
-        if self.state in ('PLAYING', 'ONLINE') and self.time_enabled and not self.time_expired and not self.logic.board.is_game_over():
+        if self.state in ('PLAYING', 'ONLINE', 'PRIVATE_ONLINE') and self.time_enabled and not self.time_expired and not self.logic.board.is_game_over():
             current_tick = pygame.time.get_ticks()
             if self.last_tick:
                 elapsed = (current_tick - self.last_tick) / 1000.0
@@ -434,6 +612,10 @@ class ChessApp:
                     # 检查游戏是否结束
                     if len(event) > 2 and event[2] in ('mate', 'resign', 'stalemate', 'draw'):
                         self.lichess_status = f"游戏结束: {event[2]}"
+        
+        # 私服联机事件处理
+        if self.state in ('PRIVATE_MENU', 'PRIVATE_ONLINE'):
+            self._update_private_online()
     
     def _do_move(self, move):
         """执行走法并处理计时"""
@@ -458,6 +640,7 @@ class ChessApp:
             self.ui.draw_button("人机对战", pygame.Rect(WIDTH//4, 290, WIDTH//2, 50))
             self.ui.draw_button("开局百科", pygame.Rect(WIDTH//4, 360, WIDTH//2, 50), (45, 90, 45))
             self.ui.draw_button("联机对战", pygame.Rect(WIDTH//4, 430, WIDTH//2, 50), (90, 45, 90))
+            self.ui.draw_button("私服联机", pygame.Rect(WIDTH//4, 500, WIDTH//2, 50), (45, 70, 120))
         
         elif self.state == 'ONLINE_MENU':
             title = self.ui.font.render("Lichess 联机", True, (255, 255, 255))
@@ -529,6 +712,12 @@ class ChessApp:
             self.screen.blit(self.ui.small_font.render(info, True, (150, 200, 255)), (20, BOARD_HEIGHT + 45))
             self.ui.draw_button("认输退出", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40), (120, 40, 40))
         
+        elif self.state == 'PRIVATE_MENU':
+            self._draw_private_menu()
+        
+        elif self.state == 'PRIVATE_ONLINE':
+            self._draw_private_online()
+        
         elif self.state == 'OPENING_MENU':
             # 标题
             title_txt = self.ui.font.render("开局百科", True, (255, 255, 255))
@@ -598,6 +787,74 @@ class ChessApp:
                 self.screen.blit(timeout_txt, (BOARD_SIZE//2 - timeout_txt.get_width()//2, BOARD_HEIGHT//2 - 20))
             self.ui.draw_button("返回主菜单 [ESC]", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40), (120, 40, 40))
         pygame.display.flip()
+
+    def _draw_private_menu(self):
+        """绘制私服联机菜单"""
+        title = self.ui.font.render("私服联机", True, (255, 255, 255))
+        self.screen.blit(title, (WIDTH//2 - title.get_width()//2, 30))
+
+        # 状态
+        if self.private.connected:
+            status_color = (100, 255, 100)
+        elif self.private.connecting:
+            status_color = (255, 220, 100)
+        else:
+            status_color = (255, 150, 150)
+        if self.private_status:
+            status_txt = self.private_status
+        elif self.private.connecting:
+            status_txt = "正在连接..."
+        else:
+            status_txt = "已连接" if self.private.connected else "未连接"
+        self.screen.blit(self.ui.small_font.render(f"状态: {status_txt}", True, status_color), (20, 80))
+
+        # 房间号显示
+        if self.private.room_id and not self.private.game_started:
+            room_txt = f"房间号: {self.private.room_id}"
+            self.screen.blit(self.ui.small_font.render(room_txt, True, (255, 220, 100)), (20, 115))
+
+        # 服务器地址
+        srv_display = self.private_server_url or "点击输入服务器地址"
+        btn_c1 = (80, 80, 120) if self.input_active and self.input_target == 'private_server' else (70, 70, 70)
+        self.ui.draw_button(f"服务器: {srv_display[:25]}", pygame.Rect(WIDTH//4, 160, WIDTH//2, 50), btn_c1)
+
+        # 昵称 / 连接
+        nick_display = self.private_nickname or "点击输入昵称并连接"
+        btn_c2 = (80, 80, 120) if self.input_active and self.input_target == 'private_nick' else (70, 70, 70)
+        self.ui.draw_button(f"昵称: {nick_display[:20]}", pygame.Rect(WIDTH//4, 230, WIDTH//2, 50), btn_c2)
+
+        if self.private.connected:
+            self.ui.draw_button("创建房间", pygame.Rect(WIDTH//4, 320, WIDTH//2, 50), (45, 90, 45))
+            self.ui.draw_button(f"加入房间", pygame.Rect(WIDTH//4, 390, WIDTH//2, 50), (70, 70, 70))
+            if self.private.matching:
+                self.ui.draw_button("取消匹配", pygame.Rect(WIDTH//4, 460, WIDTH//2, 50), (120, 120, 45))
+            else:
+                self.ui.draw_button("快速匹配", pygame.Rect(WIDTH//4, 460, WIDTH//2, 50), (45, 70, 120))
+
+        self.ui.draw_button("返回主菜单", pygame.Rect(WIDTH//4, HEIGHT-70, WIDTH//2, 45), (100, 50, 50))
+
+        if self.input_active:
+            self._draw_input_box()
+
+    def _draw_private_online(self):
+        """绘制私服联机游戏界面"""
+        self.ui.draw_board(self.logic, self.selected_sq, 'PLAYING', 0, [], False)
+        self.ui.draw_panel(self.logic, 'PLAYING', "", 0, [])
+        if self.time_enabled:
+            self.ui.draw_clock_panel(self.white_time, self.black_time, self.logic.board.turn, self.logic.player_color)
+        if self.time_expired:
+            loser = "白方" if self.white_time <= 0 else "黑方"
+            winner = "黑方" if self.white_time <= 0 else "白方"
+            timeout_txt = self.ui.font.render(f"{loser}超时 - {winner}胜!", True, (255, 80, 80))
+            self.screen.blit(timeout_txt, (BOARD_SIZE//2 - timeout_txt.get_width()//2, BOARD_HEIGHT//2 - 20))
+        # 对战信息
+        opp = self.private.opponent_name or "?"
+        info = f"对手: {opp} | 你执{'白' if self.logic.player_color == chess.WHITE else '黑'}"
+        self.screen.blit(self.ui.small_font.render(info, True, (150, 200, 255)), (20, BOARD_HEIGHT + 45))
+        # 状态显示
+        if self.private_status and "游戏结束" in self.private_status:
+            self.screen.blit(self.ui.small_font.render(self.private_status, True, (255, 100, 100)), (20, BOARD_HEIGHT + 5))
+        self.ui.draw_button("认输退出", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40), (120, 40, 40))
 
     def quit(self):
         self.logic.stop_engine(); pygame.quit(); sys.exit()
