@@ -60,12 +60,41 @@ pip install -r requirements.txt
 python main.py
 ```
 
+或在 Windows 下直接双击：
+
+- `start_app.bat`（自动安装依赖并启动）
+- `create_desktop_shortcut.bat`（在桌面创建启动图标）
+
+说明：
+
+- 通过桌面 `Bear Chess` 图标启动时，使用隐藏启动器，不会显示 cmd/shell 窗口。
+- `start_app.bat` 已优化为“仅在依赖缺失时才安装”，正常情况下启动更快。
+- 如需手动强制重装依赖，可执行：`start_app.bat --install`
+
 启动后会进入主菜单，可选择：
 
 - 双人模式
 - 人机对战
 - 开局百科
 - 联机对战（Lichess）
+
+## 打包为 Windows App（exe）
+
+在项目根目录双击：
+
+- `build_app.bat`
+
+脚本会自动：
+
+1. 安装 `pyinstaller`
+2. 打包生成 `dist/BearChess/BearChess.exe`
+3. 打包完成后自动启动 exe
+4. 自动在桌面创建/更新 `Bear Chess` 启动图标
+
+说明：
+
+- 这是 `onedir` 目录版打包，`dist/BearChess/` 目录需要整体保留。
+- 分发给别人时，直接把整个 `dist/BearChess/` 文件夹打包发送即可。
 
 
 
