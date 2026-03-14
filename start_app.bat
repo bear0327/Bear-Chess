@@ -27,7 +27,7 @@ if "%NEED_INSTALL%"=="1" (
 )
 
 echo [Bear-Chess] Starting app...
-%PY% main.py
+%PY% src\main.py
 if errorlevel 1 (
     echo [Bear-Chess] App exited with error.
     pause

@@ -18,10 +18,9 @@ if errorlevel 1 (
 
 echo [Bear-Chess] Building executable...
 %PY% -m PyInstaller --noconfirm --clean --windowed --name BearChess ^
-  --add-data "images;images" ^
+    --add-data "assets;assets" ^
   --add-data "engine;engine" ^
-  --add-data "openings.json;." ^
-  main.py
+    src\main.py
 
 if errorlevel 1 (
     echo [Bear-Chess] Build failed.
@@ -33,7 +32,7 @@ echo [Bear-Chess] Build finished.
 echo Output: dist\BearChess\BearChess.exe
 
 echo [Bear-Chess] Creating desktop shortcut...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$desktop=[Environment]::GetFolderPath('Desktop'); $target=Join-Path $PWD 'launch_bear_chess_hidden.vbs'; $exe=Join-Path $PWD 'dist\BearChess\BearChess.exe'; $shortcut=Join-Path $desktop 'Bear Chess.lnk'; if (Test-Path $target) { $w=New-Object -ComObject WScript.Shell; $s=$w.CreateShortcut($shortcut); $s.TargetPath=$target; $s.WorkingDirectory=$PWD; if (Test-Path $exe) { $s.IconLocation=$exe }; $s.Save(); Write-Output ('Shortcut: ' + $shortcut) } else { Write-Output 'Skip shortcut: launcher not found' }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$desktop=[Environment]::GetFolderPath('Desktop'); $cwd=$PWD.Path; $target=Join-Path $cwd 'launch_bear_chess_hidden.vbs'; $exe=Join-Path $cwd 'dist\BearChess\BearChess.exe'; $shortcut=Join-Path $desktop 'Bear Chess.lnk'; if (Test-Path $target) { $w=New-Object -ComObject WScript.Shell; $s=$w.CreateShortcut($shortcut); $s.TargetPath=$target; $s.WorkingDirectory=$cwd; if (Test-Path $exe) { $s.IconLocation=$exe }; $s.Save(); Write-Output ('Shortcut: ' + $shortcut) } else { Write-Output 'Skip shortcut: launcher not found' }"
 
 if exist "dist\BearChess\BearChess.exe" (
     echo [Bear-Chess] Launching app...

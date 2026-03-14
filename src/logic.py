@@ -2,6 +2,7 @@ import chess
 import chess.engine
 from constants import STOCKFISH_PATH, BOOK_PATH
 import os
+import subprocess
 import chess.polyglot
 
 class GameLogic:
@@ -16,28 +17,49 @@ class GameLogic:
     def start_engine(self):
         if not self.engine:
             try:
-                self.engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
-            except:
-                print("引擎启动失败")
+                popen_kwargs = {}
+                if os.name == "nt":
+                    popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+                self.engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH, **popen_kwargs)
+            except Exception as e:
+                self.engine = None
+                print(f"引擎启动失败: {e} | path={STOCKFISH_PATH}")
 
     def stop_engine(self):
-        if self.engine: self.engine.quit()
+        if self.engine:
+            try:
+                self.engine.quit()
+            except Exception:
+                pass
+            self.engine = None
 
     def get_ai_move(self):
-        if self.engine and not self.board.is_game_over():
+        if self.board.is_game_over():
+            return None
+
+        if not self.engine:
+            self.start_engine()
+            if not self.engine:
+                return None
+
+        try:
             result = self.engine.play(self.board, chess.engine.Limit(time=0.1))
             return result.move
-        return None
-
-    def get_external_book_moves(self):
-        moves = []
-        if os.path.exists(BOOK_PATH):
+        except (chess.engine.EngineTerminatedError, chess.engine.EngineError) as e:
+            # 引擎异常退出时尝试重启一次，避免程序直接崩溃。
+            print(f"引擎异常，尝试重启: {e}")
+            self.stop_engine()
+            self.start_engine()
+            if not self.engine:
+                return None
             try:
-                with chess.polyglot.open_reader(BOOK_PATH) as reader:
-                    for entry in reader.find_all(self.board):
-                        moves.append(entry.move) 
-            except: pass
-        return moves
+                result = self.engine.play(self.board, chess.engine.Limit(time=0.1))
+                return result.move
+            except Exception as retry_err:
+                print(f"引擎重试失败: {retry_err}")
+                self.stop_engine()
+                return None
+        return None
 
     def get_sq_from_coords(self, col, row):
         """精准修复：坐标转换"""

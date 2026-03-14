@@ -1,6 +1,6 @@
 """
 Bear-Chess 私服联机服务端
-部署到云服务器运行: python server.py
+部署到云服务器运行: python src/server.py
 依赖: pip install websockets
 """
 

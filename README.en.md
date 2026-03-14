@@ -1,81 +1,116 @@
 # Bear Chess
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
-![Pygame](https://img.shields.io/badge/Pygame-UI%20Engine-1f6f8b)
-
 [中文 README](./README.md)
 
-A chess project built with Python + Pygame, featuring local play, AI battle, opening study, and Lichess online mode.
+Bear Chess is a chess project built with Python + Pygame. It supports local play, AI mode, opening study, and online play.
 
-## Features
+## Overview
 
 - Local two-player mode
 - AI mode powered by Stockfish (UCI)
-- Opening encyclopedia from `openings.json`
-- External opening book hints from `engine/human.bin`
+- Opening study and external opening book hints
 - Time controls (`5+2`, `10+0`, `15+10`, unlimited)
-- Pawn promotion selection (Q/R/B/N)
-- Lichess online play (token login, quick match, challenge, accept challenge)
+- Lichess online mode (token-based login)
 
 ## Requirements
 
 - Python 3.9+
-- Windows (default engine path points to Windows Stockfish executable)
+- Windows (default setup)
 
 ## Quick Start
 
-### 1) Install dependencies
+1. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2) Run
+2. Run from source
 
 ```bash
-python main.py
+python src/main.py
 ```
 
-## Lichess Online Mode
+3. Windows one-click launch
 
-1. Open Online Mode in the main menu.
-2. Input your Lichess API token.
-3. After connected, you can:
-- Start quick match
-- Challenge a user
-- View and accept incoming challenges
+- start_app.bat
+- create_desktop_shortcut.bat
 
-## Core Structure
+Notes:
+
+- The desktop icon uses a hidden launcher and does not show cmd/shell.
+- start_app.bat only installs dependencies when missing.
+- Force reinstall dependencies with: start_app.bat --install
+
+## Build Windows App
+
+Run:
+
+- build_app.bat
+
+The script will:
+
+1. Install build dependencies
+2. Build dist/BearChess/BearChess.exe
+3. Update the desktop shortcut automatically
+4. Launch the executable automatically
+
+Distribution note:
+
+- This uses onedir mode. Keep the whole dist/BearChess folder.
+
+## Project Structure
 
 ```text
 Bear-Chess/
-  main.py          # App entry and state machine
-  logic.py         # Game logic, engine integration, coordinate mapping
-  renderer.py      # UI rendering
-  network.py       # Lichess API integration
-  constants.py     # Constants and paths
-  openings.json    # Opening lines
-  images/          # Piece and UI assets
-  engine/          # Stockfish binary, opening book, engine source
+  src/
+    main.py
+    logic.py
+    renderer.py
+    constants.py
+    network.py
+    private_network.py
+    app_event_mixin.py
+    app_network_mixin.py
+    app_draw_mixin.py
+    server.py
+  assets/
+    images/
+    openings.json
+  engine/
+  start_app.bat
+  build_app.bat
+  create_desktop_shortcut.bat
+  launch_bear_chess_hidden.vbs
 ```
 
-## Key Paths
+## Lichess Mode
 
-Defined in `constants.py`:
-
-- `./engine/stockfish-windows-x86-64-avx2.exe`
-- `./engine/human.bin`
-- `./openings.json`
+1. Open Online Mode in the main menu.
+2. Input your Lichess API token.
+3. You can quick match, challenge users, and accept incoming challenges.
 
 ## Troubleshooting
 
-### Engine does not respond
+1. App exits right after launch
 
-- Ensure `engine/stockfish-windows-x86-64-avx2.exe` exists.
-- On non-Windows systems, update engine path to your local Stockfish executable.
+- Re-run build_app.bat
+- Confirm dist/BearChess contains both BearChess.exe and _internal
 
-### Lichess connection fails
+2. AI mode engine error
+
+- Ensure engine/stockfish-windows-x86-64-avx2.exe exists
+- If needed, adjust paths in src/constants.py
+
+3. Lichess connection fails
 
 - Ensure `requests` is installed.
 - Ensure network can access `https://lichess.org`.
 - Ensure your token is valid and not expired.
+
+## Credits
+
+- python-chess
+- Pygame
+- Lichess API
+- Stockfish

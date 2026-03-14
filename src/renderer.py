@@ -1,6 +1,7 @@
 import pygame
 import chess
 import math
+import os
 from constants import *
 
 class Renderer:
@@ -14,8 +15,8 @@ class Renderer:
         imgs = {}
         pieces = ['P', 'R', 'N', 'B', 'Q', 'K']
         for p in pieces:
-            imgs[p] = pygame.transform.scale(pygame.image.load(f"images/w{p}.png"), (SQ_SIZE, SQ_SIZE))
-            imgs[p.lower()] = pygame.transform.scale(pygame.image.load(f"images/b{p}.png"), (SQ_SIZE, SQ_SIZE))
+            imgs[p] = pygame.transform.scale(pygame.image.load(os.path.join(IMAGES_DIR, f"w{p}.png")), (SQ_SIZE, SQ_SIZE))
+            imgs[p.lower()] = pygame.transform.scale(pygame.image.load(os.path.join(IMAGES_DIR, f"b{p}.png")), (SQ_SIZE, SQ_SIZE))
         return imgs
     
     def draw_menu_background(self):

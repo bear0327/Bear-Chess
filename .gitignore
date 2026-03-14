@@ -28,3 +28,9 @@ htmlcov/
 
 # Local logs
 *.log
+
+# Launcher diagnostics
+launch.log
+
+# IDE noise
+.idea/

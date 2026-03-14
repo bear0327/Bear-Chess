@@ -209,7 +209,7 @@ class ChessApp(EventMixin, NetworkMixin, DrawMixin):
 
 
 if __name__ == "__main__":
-    if os.path.exists("images"):
+    if os.path.exists(IMAGES_DIR):
         ChessApp().run()
     else:
-        print("请确保 images 文件夹存在")
+        print("请确保 assets/images 文件夹存在")

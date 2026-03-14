@@ -1,169 +1,115 @@
 # Bear Chess
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
-![Pygame](https://img.shields.io/badge/Pygame-UI%20Engine-1f6f8b)
-
 [English README](./README.en.md)
 
-一个基于 Python + Pygame 的本地国际象棋项目，支持：
+Bear Chess 是一个基于 Python + Pygame 的国际象棋项目，支持本地对弈、人机对战、开局学习与联机模式。
+
+## 功能概览
 
 - 本地双人对弈
-- 人机对战（内置 Stockfish 引擎）
-- 开局百科与外部开局书提示
-- Lichess 联机对战（Token 连接）
-- 多种时间控制与超时判负
-
-项目适合作为学习图形界面、状态机、棋类规则处理（python-chess）和第三方平台 API（Lichess）的练习样例。
-
-## 目录
-
-- [功能特性](#功能特性)
-- [运行环境](#运行环境)
-- [快速开始](#快速开始)
-- [Lichess 联机说明](#lichess-联机说明)
-- [项目截图](#项目截图)
-- [目录结构（核心）](#目录结构核心)
-- [关键资源路径](#关键资源路径)
-- [常见问题](#常见问题)
-- [后续可改进方向](#后续可改进方向)
-- [致谢](#致谢)
-
-## 功能特性
-
-- 棋盘与棋子渲染（支持白/黑视角转换）
-- 合法走子校验（基于 `python-chess`）
-- 兵升变选择（后 / 车 / 象 / 马）
-- 人机模式（Stockfish UCI 引擎）
-- 开局学习模式（`openings.json` 固定线路）
-- 外部谱探索（`engine/human.bin`）
-- 计时模式（如 `5+2`、`10+0`、`15+10`、无限时）
-- Lichess：快速匹配、挑战用户、接受挑战、认输
+- 人机对战（Stockfish UCI 引擎）
+- 开局学习与外部开局书提示
+- Lichess 联机（Token 连接）
+- 多种时控（5+2、10+0、15+10、无限时）
 
 ## 运行环境
 
 - Python 3.9+
-- Windows（当前默认引擎路径为 Windows 可执行文件）
+- Windows（默认配置）
 
 ## 快速开始
 
-### 1) 安装依赖
-
-在项目根目录执行：
+1. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2) 启动项目
+2. 启动（源码方式）
 
 ```bash
-python main.py
+python src/main.py
 ```
 
-或在 Windows 下直接双击：
+3. Windows 双击启动
 
-- `start_app.bat`（自动安装依赖并启动）
-- `create_desktop_shortcut.bat`（在桌面创建启动图标）
-
-说明：
-
-- 通过桌面 `Bear Chess` 图标启动时，使用隐藏启动器，不会显示 cmd/shell 窗口。
-- `start_app.bat` 已优化为“仅在依赖缺失时才安装”，正常情况下启动更快。
-- 如需手动强制重装依赖，可执行：`start_app.bat --install`
-
-启动后会进入主菜单，可选择：
-
-- 双人模式
-- 人机对战
-- 开局百科
-- 联机对战（Lichess）
-
-## 打包为 Windows App（exe）
-
-在项目根目录双击：
-
-- `build_app.bat`
-
-脚本会自动：
-
-1. 安装 `pyinstaller`
-2. 打包生成 `dist/BearChess/BearChess.exe`
-3. 打包完成后自动启动 exe
-4. 自动在桌面创建/更新 `Bear Chess` 启动图标
+- start_app.bat
+- create_desktop_shortcut.bat
 
 说明：
 
-- 这是 `onedir` 目录版打包，`dist/BearChess/` 目录需要整体保留。
-- 分发给别人时，直接把整个 `dist/BearChess/` 文件夹打包发送即可。
+- 桌面 Bear Chess 图标使用隐藏启动器，不显示 cmd/shell 窗口。
+- start_app.bat 默认只在缺依赖时安装，启动更快。
+- 强制重装依赖可用：start_app.bat --install
 
+## 打包为 Windows App
 
+执行：
 
-## Lichess 联机说明
+- build_app.bat
 
-1. 进入“联机对战”页面。
-2. 输入 Lichess API Token。
-3. 成功连接后可：
-	 - 快速匹配
-	 - 挑战指定用户名
-	 - 查看并接受收到的挑战
+脚本会自动完成：
 
-注意事项：
+1. 安装打包依赖
+2. 生成 dist/BearChess/BearChess.exe
+3. 自动更新桌面启动图标
+4. 自动启动 exe
 
-- Token 无效或过期会在界面状态栏提示。
-- 联机模式默认按 10+0 时控启动。
-- 网络异常、超时会在状态栏显示错误信息。
+分发说明：
 
-## 目录结构（核心）
+- 当前是 onedir 打包，需保留整个 dist/BearChess 目录。
+
+## 项目结构
 
 ```text
 Bear-Chess/
-	main.py          # 应用入口与状态机
-	logic.py         # 棋局逻辑、引擎调用、坐标转换
-	renderer.py      # UI 渲染（棋盘、面板、按钮、时钟）
-	network.py       # Lichess API 连接与对局流处理
-	constants.py     # 全局常量、路径、时间控制
-	openings.json    # 开局百科数据
-	images/          # 棋子与界面资源
-	engine/          # Stockfish 可执行文件、开局书、引擎源码
+	src/
+		main.py
+		logic.py
+		renderer.py
+		constants.py
+		network.py
+		private_network.py
+		app_event_mixin.py
+		app_network_mixin.py
+		app_draw_mixin.py
+		server.py
+	assets/
+		images/
+		openings.json
+	engine/
+	start_app.bat
+	build_app.bat
+	create_desktop_shortcut.bat
+	launch_bear_chess_hidden.vbs
 ```
 
-## 关键资源路径
+## 联机模式（Lichess）
 
-项目默认使用以下路径（定义在 `constants.py`）：
-
-- 引擎：`./engine/stockfish-windows-x86-64-avx2.exe`
-- 外部开局书：`./engine/human.bin`
-- 开局 JSON：`./openings.json`
-
-如果你更换了文件位置，请同步修改 `constants.py`。
+1. 进入联机页面
+2. 输入 Lichess API Token
+3. 可进行快速匹配、挑战用户、查看并接受挑战
 
 ## 常见问题
 
-### 1) 启动时报“请确保 images 文件夹存在”
+1. 启动后直接退出
 
-请确认项目根目录下存在 `images/`，且包含 `wK.png`、`bK.png` 等棋子贴图。
+- 先重新执行 build_app.bat
+- 确认 dist/BearChess 下存在 BearChess.exe 与 _internal 目录
 
-### 2) 人机模式无法走子/无 AI 响应
+2. 人机模式报引擎错误
 
-- 检查引擎文件是否存在：`engine/stockfish-windows-x86-64-avx2.exe`
-- 若你在非 Windows 平台运行，需要改为对应平台的 Stockfish 可执行文件路径。
+- 确认 engine/stockfish-windows-x86-64-avx2.exe 存在
+- 若更换引擎路径，请在 src/constants.py 中调整
 
-### 3) 联机无法连接
+3. 联机连接失败
 
-- 确认已安装 `requests`
-- 确认网络可访问 `https://lichess.org`
-- 确认 Token 正确且未过期
-
-## 后续可改进方向
-
-- 增加跨平台引擎路径自动检测（Windows / macOS / Linux）
-- 增加音效、动画与主题皮肤
-- 增加 PGN 导入导出与复盘
-- 补充自动化测试与打包脚本
+- 检查网络可访问 lichess.org
+- 检查 Token 是否有效
 
 ## 致谢
 
-- [python-chess](https://python-chess.readthedocs.io/)
-- [Pygame](https://www.pygame.org/)
-- [Lichess API](https://lichess.org/api)
-- [Stockfish](https://stockfishchess.org/)
+- python-chess
+- Pygame
+- Lichess API
+- Stockfish

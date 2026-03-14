@@ -1,6 +1,7 @@
 import pygame
 import json
 import os
+import sys
 
 # 尺寸配置
 BOARD_SIZE = 600
@@ -23,10 +24,29 @@ COLORS = [pygame.Color("#eae8f1"), pygame.Color("#769656")]
 BG_COLOR = (49, 46, 43)
 PANEL_COLOR = (38, 37, 34)
 
+def _get_app_base_dir():
+    # PyInstaller 打包后优先使用 _MEIPASS（onedir 下通常是 _internal）。
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
+
+    # 兜底：打包后使用 exe 所在目录，源码运行使用项目根目录。
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+APP_BASE_DIR = _get_app_base_dir()
+
+
+def _app_path(*parts):
+    return os.path.join(APP_BASE_DIR, *parts)
+
+
 # 路径
-STOCKFISH_PATH = "./engine/stockfish-windows-x86-64-avx2.exe"
-BOOK_PATH = "./engine/human.bin"
-OPENINGS_PATH = "./openings.json"
+STOCKFISH_PATH = _app_path("engine", "stockfish-windows-x86-64-avx2.exe")
+BOOK_PATH = _app_path("engine", "human.bin")
+OPENINGS_PATH = _app_path("assets", "openings.json")
+IMAGES_DIR = _app_path("assets", "images")
 
 # ── 私服联机配置 ─────────────────────────────────────────────
 # 将下面的地址改为你的云服务器IP和端口，就不用每次在游戏里输入了
