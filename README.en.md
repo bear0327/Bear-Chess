@@ -77,6 +77,7 @@ Bear-Chess/
   assets/
     images/
     openings.json
+    theme.json
   engine/
   start_app.bat
   build_app.bat
@@ -89,6 +90,44 @@ Bear-Chess/
 1. Open Online Mode in the main menu.
 2. Input your Lichess API token.
 3. You can quick match, challenge users, and accept incoming challenges.
+
+## Customize Board Theme
+
+Edit assets/theme.json to customize colors:
+
+- light_square
+- dark_square
+- bg_color
+- panel_color
+- images_dir (piece image folder relative to assets)
+- board_background_image (board background image relative to assets, for example bd1.jpg)
+- board_square_alpha (0-255; smaller value shows more background image)
+
+Supported formats:
+
+- Hex string (for example #f0d9b5)
+- RGB array (for example [240, 217, 181])
+
+Restart the game after editing the file.
+
+Custom piece set example:
+
+1. Create a folder under assets, for example assets/images_blue
+2. Put these 12 files in it:
+  wP.png wR.png wN.png wB.png wQ.png wK.png
+  bP.png bR.png bN.png bB.png bQ.png bK.png
+3. Set this in assets/theme.json:
+
+```json
+"images_dir": "images_blue"
+```
+
+Custom board background example:
+
+```json
+"board_background_image": "bd1.jpg",
+"board_square_alpha": 140
+```
 
 ## Troubleshooting
 

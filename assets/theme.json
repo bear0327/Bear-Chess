@@ -1,0 +1,12 @@
+{
+  "light_square": "#f0d9b5",
+  "dark_square": "#b58863",
+  "bg_color": "#2b2a28",
+  "panel_color": "#1f1f1f",
+  "images_dir": "images",
+  "menu_background_image": "images/menu_bg.png",
+  "board_background_image": null,
+  "board_square_alpha": 140,
+  "board_overlay_squares": true,
+  "board_show_coordinates": true
+}

@@ -7,21 +7,85 @@ from constants import *
 class Renderer:
     def __init__(self, screen):
         self.screen = screen
-        self.font = pygame.font.SysFont("SimHei", 40)
-        self.small_font = pygame.font.SysFont("SimHei", 24)
+        self.font = self._safe_ui_font(40)
+        self.small_font = self._safe_ui_font(24)
+        self.coord_font = self._safe_mono_font(14, bold=True)
         self.images = self._load_images()
+        self.menu_bg_image = self._load_menu_background()
+        self.board_bg_image = self._load_board_background()
+
+    def _load_windows_font(self, filenames, size):
+        windir = os.environ.get("WINDIR", r"C:\Windows")
+        fonts_dir = os.path.join(windir, "Fonts")
+        for filename in filenames:
+            path = os.path.join(fonts_dir, filename)
+            if os.path.exists(path):
+                try:
+                    return pygame.font.Font(path, size)
+                except Exception:
+                    continue
+        return None
+
+    def _safe_sys_font(self, name, size, bold=False):
+        try:
+            return pygame.font.SysFont(name, size, bold=bold)
+        except Exception:
+            # 某些 Windows 环境的字体注册表异常会导致 SysFont 崩溃，回退默认字体避免打包版秒退。
+            return pygame.font.Font(None, size)
+
+    def _safe_ui_font(self, size):
+        # 优先直接读取 Windows 字体文件，避免 SysFont 在个别系统注册表异常时崩溃。
+        direct = self._load_windows_font(
+            ["msyh.ttc", "msyhbd.ttc", "simhei.ttf", "simsun.ttc", "Deng.ttf"],
+            size,
+        )
+        if direct is not None:
+            return direct
+        return self._safe_sys_font("SimHei", size)
+
+    def _safe_mono_font(self, size, bold=False):
+        direct = self._load_windows_font(
+            ["consolab.ttf", "consola.ttf", "CascadiaMono.ttf"],
+            size,
+        )
+        if direct is not None:
+            return direct
+        return self._safe_sys_font("Consolas", size, bold=bold)
 
     def _load_images(self):
         imgs = {}
         pieces = ['P', 'R', 'N', 'B', 'Q', 'K']
         for p in pieces:
-            imgs[p] = pygame.transform.scale(pygame.image.load(os.path.join(IMAGES_DIR, f"w{p}.png")), (SQ_SIZE, SQ_SIZE))
-            imgs[p.lower()] = pygame.transform.scale(pygame.image.load(os.path.join(IMAGES_DIR, f"b{p}.png")), (SQ_SIZE, SQ_SIZE))
+            imgs[p] = pygame.transform.scale(pygame.image.load(os.path.join(PIECE_IMAGES_DIR, f"w{p}.png")), (SQ_SIZE, SQ_SIZE))
+            imgs[p.lower()] = pygame.transform.scale(pygame.image.load(os.path.join(PIECE_IMAGES_DIR, f"b{p}.png")), (SQ_SIZE, SQ_SIZE))
         return imgs
+
+    def _load_menu_background(self):
+        if not MENU_BACKGROUND_IMAGE:
+            return None
+        try:
+            img = pygame.image.load(MENU_BACKGROUND_IMAGE)
+            return pygame.transform.scale(img, (WIDTH, HEIGHT))
+        except Exception as e:
+            print(f"菜单背景图加载失败: {e}")
+            return None
+
+    def _load_board_background(self):
+        if not BOARD_BACKGROUND_IMAGE:
+            return None
+        try:
+            img = pygame.image.load(BOARD_BACKGROUND_IMAGE)
+            return pygame.transform.scale(img, (BOARD_SIZE, BOARD_SIZE))
+        except Exception as e:
+            print(f"棋盘背景图加载失败: {e}")
+            return None
     
     def draw_menu_background(self):
         """绘制主菜单背景"""
-        self.screen.fill(BG_COLOR)
+        if self.menu_bg_image is not None:
+            self.screen.blit(self.menu_bg_image, (0, 0))
+        else:
+            self.screen.fill(BG_COLOR)
 
     def draw_button(self, text, rect, color=(100, 100, 100), text_color=(255, 255, 255)):
         mouse_pos = pygame.mouse.get_pos()
@@ -119,11 +183,51 @@ class Renderer:
         # 绘制三角形箭头
         pygame.draw.polygon(self.screen, color, [point1, point2, point3])
 
+    def _draw_board_coordinates(self, logic):
+        if logic.player_color == chess.WHITE:
+            files = ["a", "b", "c", "d", "e", "f", "g", "h"]
+            ranks = ["8", "7", "6", "5", "4", "3", "2", "1"]
+        else:
+            files = ["h", "g", "f", "e", "d", "c", "b", "a"]
+            ranks = ["1", "2", "3", "4", "5", "6", "7", "8"]
+
+        # 坐标绘制到棋盘外侧的专用留白区，避免与棋盘内容和底部文字冲突。
+        bottom_y = BOARD_SIZE + (COORD_GUTTER_BOTTOM // 2)
+        right_x = BOARD_SIZE + (COORD_GUTTER_RIGHT // 2)
+
+        for c, file_label in enumerate(files):
+            text_color = (230, 230, 230)
+            txt = self.coord_font.render(file_label, True, text_color)
+            x = c * SQ_SIZE + SQ_SIZE // 2 - txt.get_width() // 2
+            y = bottom_y - txt.get_height() // 2
+            self.screen.blit(txt, (x, y))
+
+        for r, rank_label in enumerate(ranks):
+            text_color = (230, 230, 230)
+            txt = self.coord_font.render(rank_label, True, text_color)
+            x = right_x - txt.get_width() // 2
+            y = r * SQ_SIZE + SQ_SIZE // 2 - txt.get_height() // 2
+            self.screen.blit(txt, (x, y))
+
+    def draw_board_coordinates_overlay(self, logic):
+        if BOARD_SHOW_COORDINATES:
+            self._draw_board_coordinates(logic)
+
     def draw_board(self, logic, selected_sq, state, learning_step, learning_seq, show_hints=False):
         # 1. 绘制基础棋盘格
-        for r in range(8):
-            for c in range(8):
-                pygame.draw.rect(self.screen, COLORS[(r + c) % 2], (c * SQ_SIZE, r * SQ_SIZE, SQ_SIZE, SQ_SIZE))
+        if self.board_bg_image is not None:
+            self.screen.blit(self.board_bg_image, (0, 0))
+            if BOARD_OVERLAY_SQUARES:
+                for r in range(8):
+                    for c in range(8):
+                        base = COLORS[(r + c) % 2]
+                        square = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
+                        square.fill((base.r, base.g, base.b, BOARD_SQUARE_ALPHA))
+                        self.screen.blit(square, (c * SQ_SIZE, r * SQ_SIZE))
+        else:
+            for r in range(8):
+                for c in range(8):
+                    pygame.draw.rect(self.screen, COLORS[(r + c) % 2], (c * SQ_SIZE, r * SQ_SIZE, SQ_SIZE, SQ_SIZE))
         
                 # --- 核心修改：绘制开局书提示箭头 ---
         if show_hints:
@@ -161,8 +265,8 @@ class Renderer:
                 self.screen.blit(self.images[p.symbol()], (c * SQ_SIZE, r * SQ_SIZE))
 
     def draw_panel(self, logic, state, learning_title, learning_step, learning_seq):
-        pygame.draw.rect(self.screen, PANEL_COLOR, (0, BOARD_HEIGHT, WIDTH, HEIGHT - BOARD_HEIGHT))
-        pygame.draw.line(self.screen, (70, 70, 70), (0, BOARD_HEIGHT), (WIDTH, BOARD_HEIGHT), 2)
+        pygame.draw.rect(self.screen, PANEL_COLOR, (0, PANEL_TOP, WIDTH, HEIGHT - PANEL_TOP))
+        pygame.draw.line(self.screen, (70, 70, 70), (0, PANEL_TOP), (WIDTH, PANEL_TOP), 2)
         
         if state == 'LEARNING':
             # 截断过长的开局名称
@@ -177,12 +281,12 @@ class Renderer:
             txt = f"等待{turn}走棋..."; col = (255, 255, 255)
         
         # 第一行：状态信息
-        self.screen.blit(self.small_font.render(txt, True, col), (20, BOARD_HEIGHT + 15))
+        self.screen.blit(self.small_font.render(txt, True, col), (20, PANEL_TOP + 15))
         
         # 第二行：显示完整开局名称（如果被截断了）
         if state == 'LEARNING' and len(learning_title) > max_title_len:
             full_txt = self.small_font.render(learning_title, True, (120, 200, 120))
-            self.screen.blit(full_txt, (20, BOARD_HEIGHT + 50))
+            self.screen.blit(full_txt, (20, PANEL_TOP + 50))
     
     def draw_promotion_menu(self, turn):
         # 遮罩层
@@ -208,10 +312,10 @@ class Renderer:
     
     def draw_clock_panel(self, white_time, black_time, current_turn, player_color, time_enabled=True):
         """绘制右侧时钟面板"""
-        panel_x = BOARD_SIZE
-        panel_rect = pygame.Rect(panel_x, 0, SIDE_PANEL_WIDTH, BOARD_HEIGHT)
+        panel_x = SIDE_PANEL_X
+        panel_rect = pygame.Rect(panel_x, 0, SIDE_PANEL_WIDTH, BOARD_SIZE)
         pygame.draw.rect(self.screen, (30, 30, 35), panel_rect)
-        pygame.draw.line(self.screen, (60, 60, 65), (panel_x, 0), (panel_x, BOARD_HEIGHT), 2)
+        pygame.draw.line(self.screen, (60, 60, 65), (panel_x, 0), (panel_x, BOARD_SIZE), 2)
         
         # 格式化时间
         def format_time(seconds):
@@ -222,8 +326,8 @@ class Renderer:
             return f"{mins:02d}:{secs:02d}"
         
         # 时钟字体
-        clock_font = pygame.font.SysFont("Consolas", 36, bold=True)
-        label_font = pygame.font.SysFont("SimHei", 18)
+        clock_font = self._safe_mono_font(36, bold=True)
+        label_font = self._safe_ui_font(18)
         
         # 对手时钟 (顶部)
         opponent_color = chess.BLACK if player_color == chess.WHITE else chess.WHITE
@@ -246,16 +350,16 @@ class Renderer:
         player_active = (current_turn == player_color) and time_enabled
         
         # 玩家区域
-        player_rect = pygame.Rect(panel_x + 10, BOARD_HEIGHT - 150, SIDE_PANEL_WIDTH - 20, 100)
+        player_rect = pygame.Rect(panel_x + 10, BOARD_SIZE - 150, SIDE_PANEL_WIDTH - 20, 100)
         player_bg = (40, 80, 40) if player_active else (45, 45, 50)
         pygame.draw.rect(self.screen, player_bg, player_rect, border_radius=8)
         
         player_label = "白方" if player_color == chess.WHITE else "黑方"
-        self.screen.blit(label_font.render(player_label + " (你)", True, (180, 180, 180)), (panel_x + 20, BOARD_HEIGHT - 145))
+        self.screen.blit(label_font.render(player_label + " (你)", True, (180, 180, 180)), (panel_x + 20, BOARD_SIZE - 145))
         
         player_time_txt = clock_font.render(format_time(player_time), True, (255, 255, 255))
-        self.screen.blit(player_time_txt, (panel_x + SIDE_PANEL_WIDTH//2 - player_time_txt.get_width()//2, BOARD_HEIGHT - 115))
+        self.screen.blit(player_time_txt, (panel_x + SIDE_PANEL_WIDTH//2 - player_time_txt.get_width()//2, BOARD_SIZE - 115))
         
         if not time_enabled:
             hint = label_font.render("无限时", True, (120, 120, 120))
-            self.screen.blit(hint, (panel_x + SIDE_PANEL_WIDTH//2 - hint.get_width()//2, BOARD_HEIGHT//2 - 10))
+            self.screen.blit(hint, (panel_x + SIDE_PANEL_WIDTH//2 - hint.get_width()//2, BOARD_SIZE//2 - 10))

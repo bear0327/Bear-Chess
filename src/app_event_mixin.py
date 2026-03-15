@@ -193,7 +193,7 @@ class EventMixin:
                 self.ai_timer = pygame.time.get_ticks()
 
         elif self.state in ['PLAYING', 'LEARNING', 'PROMOTING']:
-            if pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40).collidepoint(pos):
+            if pygame.Rect(WIDTH - 240, PANEL_TOP + 70, 220, 40).collidepoint(pos):
                 self.reset_game()
                 self.state = 'MENU'
                 return
@@ -205,7 +205,7 @@ class EventMixin:
                 self.handle_move(pos)
 
         elif self.state == 'ONLINE':
-            if pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40).collidepoint(pos):
+            if pygame.Rect(WIDTH - 240, PANEL_TOP + 70, 220, 40).collidepoint(pos):
                 self.lichess.resign()
                 self.lichess.disconnect()
                 self.state = 'MENU'
@@ -218,20 +218,20 @@ class EventMixin:
 
         elif self.state == 'PRIVATE_ONLINE':
             if self.private.incoming_draw_offer and not self.private_game_ended:
-                if pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 105, 40).collidepoint(pos):
+                if pygame.Rect(WIDTH - 240, PANEL_TOP + 20, 105, 40).collidepoint(pos):
                     success, msg = self.private.accept_draw()
                     self.private_status = msg
                     return
-                if pygame.Rect(WIDTH - 125, BOARD_HEIGHT + 20, 105, 40).collidepoint(pos):
+                if pygame.Rect(WIDTH - 125, PANEL_TOP + 20, 105, 40).collidepoint(pos):
                     success, msg = self.private.decline_draw()
                     self.private_status = msg
                     return
-            elif not self.private_game_ended and pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 220, 40).collidepoint(pos):
+            elif not self.private_game_ended and pygame.Rect(WIDTH - 240, PANEL_TOP + 20, 220, 40).collidepoint(pos):
                 success, msg = self.private.offer_draw()
                 self.private_status = msg
                 return
 
-            if pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40).collidepoint(pos):
+            if pygame.Rect(WIDTH - 240, PANEL_TOP + 70, 220, 40).collidepoint(pos):
                 self.private.resign()
                 self.private.leave_room()
                 self.private_status = ""
@@ -246,7 +246,7 @@ class EventMixin:
         if self.pvp_game_ended:
             return False
 
-        offer_btn = pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 220, 40)
+        offer_btn = pygame.Rect(WIDTH - 240, PANEL_TOP + 20, 220, 40)
         if offer_btn.collidepoint(pos):
             self.pvp_draw_offer_from = None
             self.pvp_game_ended = True

@@ -77,6 +77,7 @@ Bear-Chess/
 	assets/
 		images/
 		openings.json
+		theme.json
 	engine/
 	start_app.bat
 	build_app.bat
@@ -89,6 +90,44 @@ Bear-Chess/
 1. 进入联机页面
 2. 输入 Lichess API Token
 3. 可进行快速匹配、挑战用户、查看并接受挑战
+
+## 自定义棋盘主题
+
+你可以直接编辑 assets/theme.json 来自定义棋盘颜色：
+
+- light_square: 浅色格
+- dark_square: 深色格
+- bg_color: 背景色
+- panel_color: 底部面板色
+- images_dir: 棋子图片目录（相对于 assets）
+- board_background_image: 棋盘背景图（相对于 assets，例如 bd1.jpg）
+- board_square_alpha: 棋盘格透明度（0-255，越小越能看到背景图）
+
+支持两种写法：
+
+- 十六进制字符串（如 #f0d9b5）
+- RGB 数组（如 [240, 217, 181]）
+
+修改后重启游戏即可生效。
+
+自定义棋子图片示例：
+
+1. 在 assets 下新建目录，例如 assets/images_blue
+2. 放入 12 张棋子图片，文件名必须是：
+	wP.png wR.png wN.png wB.png wQ.png wK.png
+	bP.png bR.png bN.png bB.png bQ.png bK.png
+3. 在 assets/theme.json 中设置：
+
+```json
+"images_dir": "images_blue"
+```
+
+自定义棋盘背景图示例：
+
+```json
+"board_background_image": "bd1.jpg",
+"board_square_alpha": 140
+```
 
 ## 常见问题
 

@@ -9,7 +9,7 @@ class DrawMixin:
         self.screen.fill(BG_COLOR)
         if self.state == 'MENU':
             self.ui.draw_menu_background()
-            title = self.ui.font.render("国际象棋", True, (255, 255, 255))
+            title = self.ui.font.render("Bear-Chess", True, (255, 255, 255))
             self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 120))
             self.ui.draw_button("双人模式", pygame.Rect(WIDTH // 4, 220, WIDTH // 2, 50))
             self.ui.draw_button("人机对战", pygame.Rect(WIDTH // 4, 290, WIDTH // 2, 50))
@@ -75,8 +75,9 @@ class DrawMixin:
                 timeout_txt = self.ui.font.render(f"{loser}超时 - {winner}胜!", True, (255, 80, 80))
                 self.screen.blit(timeout_txt, (BOARD_SIZE // 2 - timeout_txt.get_width() // 2, BOARD_HEIGHT // 2 - 20))
             info = f"Lichess | 你执{'白' if self.logic.player_color == chess.WHITE else '黑'}"
-            self.screen.blit(self.ui.small_font.render(info, True, (150, 200, 255)), (20, BOARD_HEIGHT + 45))
-            self.ui.draw_button("认输退出", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40), (120, 40, 40))
+            self.screen.blit(self.ui.small_font.render(info, True, (150, 200, 255)), (20, PANEL_TOP + 45))
+            self.ui.draw_button("认输退出", pygame.Rect(WIDTH - 240, PANEL_TOP + 70, 220, 40), (120, 40, 40))
+            self.ui.draw_board_coordinates_overlay(self.logic)
 
         elif self.state == 'PRIVATE_MENU':
             self._draw_private_menu()
@@ -147,12 +148,13 @@ class DrawMixin:
             if self.state == 'PLAYING' and self.game_mode == 'pvp':
                 if self.pvp_status:
                     status_color = (255, 100, 100) if "游戏结束" in self.pvp_status else (200, 200, 120)
-                    self.screen.blit(self.ui.small_font.render(self.pvp_status, True, status_color), (20, BOARD_HEIGHT + 45))
+                    self.screen.blit(self.ui.small_font.render(self.pvp_status, True, status_color), (20, PANEL_TOP + 45))
 
                 if not self.pvp_game_ended and not self.time_expired:
-                    self.ui.draw_button("提和(直接判和)", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 220, 40), (60, 100, 120))
+                    self.ui.draw_button("提和(直接判和)", pygame.Rect(WIDTH - 240, PANEL_TOP + 20, 220, 40), (60, 100, 120))
 
-            self.ui.draw_button("返回主菜单 [ESC]", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40), (120, 40, 40))
+            self.ui.draw_button("返回主菜单 [ESC]", pygame.Rect(WIDTH - 240, PANEL_TOP + 70, 220, 40), (120, 40, 40))
+            self.ui.draw_board_coordinates_overlay(self.logic)
 
         pygame.display.flip()
 
@@ -212,15 +214,16 @@ class DrawMixin:
 
         opp = self.private.opponent_name or "?"
         info = f"对手: {opp} | 你执{'白' if self.logic.player_color == chess.WHITE else '黑'}"
-        self.screen.blit(self.ui.small_font.render(info, True, (150, 200, 255)), (20, BOARD_HEIGHT + 45))
+        self.screen.blit(self.ui.small_font.render(info, True, (150, 200, 255)), (20, PANEL_TOP + 45))
 
         if self.private_status and "游戏结束" in self.private_status:
-            self.screen.blit(self.ui.small_font.render(self.private_status, True, (255, 100, 100)), (20, BOARD_HEIGHT + 75))
+            self.screen.blit(self.ui.small_font.render(self.private_status, True, (255, 100, 100)), (20, PANEL_TOP + 75))
 
         if self.private.incoming_draw_offer and not self.private_game_ended:
-            self.ui.draw_button("接受和棋", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 105, 40), (45, 90, 45))
-            self.ui.draw_button("拒绝", pygame.Rect(WIDTH - 125, BOARD_HEIGHT + 20, 105, 40), (120, 80, 45))
+            self.ui.draw_button("接受和棋", pygame.Rect(WIDTH - 240, PANEL_TOP + 20, 105, 40), (45, 90, 45))
+            self.ui.draw_button("拒绝", pygame.Rect(WIDTH - 125, PANEL_TOP + 20, 105, 40), (120, 80, 45))
         elif not self.private_game_ended:
-            self.ui.draw_button("提和", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 20, 220, 40), (60, 100, 120))
+            self.ui.draw_button("提和", pygame.Rect(WIDTH - 240, PANEL_TOP + 20, 220, 40), (60, 100, 120))
 
-        self.ui.draw_button("认输退出", pygame.Rect(WIDTH - 240, BOARD_HEIGHT + 70, 220, 40), (120, 40, 40))
+        self.ui.draw_button("认输退出", pygame.Rect(WIDTH - 240, PANEL_TOP + 70, 220, 40), (120, 40, 40))
+        self.ui.draw_board_coordinates_overlay(self.logic)
